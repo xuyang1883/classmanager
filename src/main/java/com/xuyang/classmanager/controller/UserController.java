@@ -3,10 +3,7 @@ package com.xuyang.classmanager.controller;
 import com.xuyang.classmanager.entity.User;
 import com.xuyang.classmanager.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
@@ -15,7 +12,7 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @PostMapping("/login")
+    @GetMapping ("/login")
     public User login(@RequestParam String username, @RequestParam String password) {
         User user = userService.login(username, password);
         if (user != null) {

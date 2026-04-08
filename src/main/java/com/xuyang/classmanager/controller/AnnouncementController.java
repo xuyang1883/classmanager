@@ -18,7 +18,7 @@ public class AnnouncementController {
     public List<com.xuyang.classmanager.entity.Announcement> list() {
         return announcementService.getAllAnnouncements();
     }
-    @PostMapping("/add")
+    @GetMapping("/add")
     public String add(@RequestParam String title, @RequestParam String content) {
         Announcement announcement = new Announcement();
         announcement.setTitle(title);

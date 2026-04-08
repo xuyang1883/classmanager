@@ -15,4 +15,24 @@ public class GradeService {
     public List<Grade> getAllGrades() {
         return gradeMapper.findAll();
     }
+
+    public List<Grade> getGradesByStudentId(Integer studentId) {
+        return gradeMapper.findByStudentId(studentId);
+    }
+
+    public Grade findByStudentIdAndCourseId(Integer studentId, Integer courseId) {
+        return gradeMapper.findByStudentIdAndCourseId(studentId, courseId);
+    }
+
+    public boolean addGrade(Grade grade) {
+        return gradeMapper.add(grade) > 0;
+    }
+
+    public boolean updateGrade(Integer id, Integer score) {
+        return gradeMapper.update(id, score) > 0;
+    }
+
+    public boolean deleteGrade(Integer id) {
+        return gradeMapper.delete(id) > 0;
+    }
 }

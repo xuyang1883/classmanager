@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级信息管理系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .login-card h1 { text-align: center; margin-bottom: 30px; }
+        .login-card input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .login-card button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .error-msg { color: #e74c3c; text-align: center; margin-bottom: 15px; }
+        .header {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .role-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; color: white; }
+        .role-student { background: #409eff; }
+        .role-teacher { background: #e6a23c; }
+        .role-admin { background: #f56c6c; }
+        .logout-btn { padding: 6px 16px; background: #f5f7fa; border: 1px solid #dcdfe6; border-radius: 4px; cursor: pointer; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card h2 { margin-bottom: 15px; border-left: 4px solid #409eff; padding-left: 12px; }
+        .card h3 { margin-bottom: 10px; color: #333; }
+        .announcement-item { border-bottom: 1px solid #eee; padding: 12px 0; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .input-group input, .input-group select { padding: 10px; border: 1px solid #dcdfe6; border-radius: 4px; }
+        .input-group input { flex: 1; min-width: 120px; }
+        .input-group select { min-width: 150px; }
+        .input-group button { padding: 10px 20px; background: #409eff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #dcdfe6; border-radius: 4px; font-family: inherit; resize: vertical; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f5f7fa; }
+        .loading, .empty { text-align: center; color: #999; padding: 20px; }
+        button { cursor: pointer; }
+        .edit-btn { background: #e6a23c; color: white; border: none; padding: 4px 12px; border-radius: 4px; margin-right: 5px; cursor: pointer; }
+        .delete-btn { background: #f56c6c; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+        .course-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .course-actions button { margin-left: 8px; padding: 2px 8px; font-size: 12px; }
+        .section-title { margin-top: 20px; margin-bottom: 10px; font-weight: bold; color: #666; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div v-if="!isLoggedIn" class="login-container">
+        <div class="login-card">
+            <h1>📚 班级信息管理系统</h1>
+            <div v-if="loginError" class="error-msg">{{ loginError }}</div>
+            <input type="text" v-model="loginForm.username" placeholder="用户名" @keyup.enter="doLogin">
+            <input type="password" v-model="loginForm.password" placeholder="密码" @keyup.enter="doLogin">
+            <button @click="doLogin">登录</button>
+            <div style="margin-top: 20px; font-size: 12px; color: #999; text-align: center;">
+                <p>测试账号：student1/123456（学生） teacher1/123456（教师） admin/123456（管理员）</p>
+            </div>
+        </div>
+    </div>
+
+    <div v-else class="container">
+        <div class="header">
+            <h2>📚 班级信息管理系统</h2>
+            <div class="user-info">
+                <span>欢迎，{{ user.name }}</span>
+                <span :class="['role-badge', roleClass]">{{ roleName }}</span>
+                <button class="logout-btn" @click="logout">退出登录</button>
+            </div>
+        </div>
+
+        <!-- 公告列表 -->
+        <div class="card">
+            <h2>📢 最新公告</h2>
+            <div v-if="announcementLoading" class="loading">加载中...</div>
+            <div v-else>
+                <div v-for="item in announcements" :key="item.id" class="announcement-item">
+                    <div style="font-weight: bold">{{ item.title }}</div>
+                    <div style="color: #666; margin-top: 5px">{{ item.content }}</div>
+                    <div style="color: #999; font-size: 12px; margin-top: 5px">{{ formatDate(item.createTime) }}</div>
+                </div>
+                <div v-if="announcements.length === 0" class="empty">暂无公告</div>
+            </div>
+        </div>
+
+        <!-- 管理员：发布公告 + 课程管理 -->
+        <div v-if="user.role === 'admin'">
+            <div class="card">
+                <h2>📝 发布公告</h2>
+                <input type="text" v-model="newAnnouncement.title" placeholder="公告标题" style="width:100%; padding:10px; margin-bottom:10px">
+                <textarea v-model="newAnnouncement.content" placeholder="公告内容" rows="3"></textarea>
+                <button @click="publishAnnouncement" style="margin-top:10px; background:#409eff; color:white; padding:10px 20px; border:none; border-radius:4px">发布公告</button>
+            </div>
+
+            <div class="card">
+                <h2>📚 课程管理</h2>
+                <div class="input-group">
+                    <input type="text" v-model="newCourseName" placeholder="新课程名称">
+                    <button @click="addCourse">添加课程</button>
+                </div>
+                <div v-for="course in courses" :key="course.id" class="course-item">
+                    <span>{{ course.name }}</span>
+                    <div class="course-actions">
+                        <button class="edit-btn" @click="startEditCourse(course)">编辑</button>
+                        <button class="delete-btn" @click="deleteCourse(course.id)">删除</button>
+                    </div>
+                </div>
+                <div v-if="editingCourse" class="input-group" style="margin-top: 10px;">
+                    <input type="text" v-model="editingCourse.name" placeholder="修改课程名称">
+                    <button @click="saveEditCourse">保存修改</button>
+                    <button @click="cancelEditCourse">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 教师 + 管理员：成绩管理 -->
+        <div class="card" v-if="user.role === 'teacher' || user.role === 'admin'">
+            <h2>📖 成绩管理</h2>
+
+            <div class="input-group">
+                <input type="number" v-model="queryStudentId" placeholder="学生ID（1:李明, 2:王芳）">
+                <button @click="fetchGradesByStudentId">查询成绩</button>
+                <button @click="fetchAllGrades">查看所有成绩</button>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee">
+                <h3>录入成绩</h3>
+                <div class="input-group">
+                    <input type="number" v-model="newGrade.studentId" placeholder="学生ID" style="width:100px">
+                    <select v-model="newGrade.courseId" style="flex:1">
+                        <option value="">请选择课程</option>
+                        <option v-for="c in courses" :key="c.id" :value="c.id">{{ c.name }}</option>
+                    </select>
+                    <input type="number" v-model="newGrade.score" placeholder="分数" style="width:100px">
+                    <button @click="addGrade">添加成绩</button>
+                </div>
+            </div>
+
+            <div v-if="grades.length > 0">
+                <table>
+                    <thead>
+                    <tr><th>学生ID</th><th>课程</th><th>分数</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="item in grades" :key="item.id">
+                        <td>{{ item.studentId }}</td>
+                        <td>{{ item.courseName }}</td>
+                        <td>
+                            <span v-if="editingId !== item.id">{{ item.score }}</span>
+                            <input v-else type="number" v-model="editScore" style="width:80px">
+                        </td>
+                        <td>
+                            <button v-if="editingId !== item.id" class="edit-btn" @click="startEdit(item)">编辑</button>
+                            <button v-else class="edit-btn" @click="saveEdit(item.id)">保存</button>
+                            <button class="delete-btn" @click="deleteGrade(item.id)">删除</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-else-if="gradeLoaded" class="empty">暂无成绩数据</div>
+            <div v-if="gradeLoading" class="loading">加载中...</div>
+        </div>
+
+        <!-- 学生：查看自己成绩 -->
+        <div class="card" v-if="user.role === 'student'">
+            <h2>📖 我的成绩</h2>
+            <button @click="fetchMyGrades" style="background:#409eff; color:white; padding:10px 20px; border:none; border-radius:4px">查看我的成绩</button>
+            <div v-if="grades.length > 0">
+                <table>
+                    <thead><tr><th>课程</th><th>分数</th></tr></thead>
+                    <tbody>
+                    <tr v-for="item in grades" :key="item.id"><td>{{ item.courseName }}</td><td>{{ item.score }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-else-if="gradeLoaded" class="empty">暂无成绩数据</div>
+            <div v-if="gradeLoading" class="loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const isLoggedIn = ref(false);
+            const user = ref({});
+            const loginForm = ref({ username: '', password: '' });
+            const loginError = ref('');
+
+            const announcements = ref([]);
+            const announcementLoading = ref(false);
+
+            const courses = ref([]);
+            const newCourseName = ref('');
+            const editingCourse = ref(null);
+
+            const grades = ref([]);
+            const gradeLoading = ref(false);
+            const gradeLoaded = ref(false);
+            const queryStudentId = ref('');
+            const newGrade = ref({ studentId: '', courseId: '', score: '' });
+            const newAnnouncement = ref({ title: '', content: '' });
+
+            const editingId = ref(null);
+            const editScore = ref('');
+
+            const roleClass = computed(() => {
+                const role = user.value?.role;
+                if (role === 'student') return 'role-student';
+                if (role === 'teacher') return 'role-teacher';
+                return 'role-admin';
+            });
+            const roleName = computed(() => {
+                const role = user.value?.role;
+                if (role === 'student') return '学生';
+                if (role === 'teacher') return '教师';
+                return '管理员';
+            });
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
+            };
+
+            const fetchAnnouncements = async () => {
+                announcementLoading.value = true;
+                try {
+                    const res = await axios.get('http://localhost:8080/announcement/list');
+                    announcements.value = res.data;
+                } catch (err) { console.error(err);
+                } finally { announcementLoading.value = false; }
+            };
+
+            const fetchCourses = async () => {
+                try {
+                    const res = await axios.get('http://localhost:8080/course/list');
+                    courses.value = res.data;
+                } catch (err) { console.error(err); }
+            };
+
+            const addCourse = async () => {
+                if (!newCourseName.value) { alert('请输入课程名称'); return; }
+                try {
+                    const res = await axios.get('http://localhost:8080/course/add', { params: { name: newCourseName.value } });
+                    alert(res.data);
+                    if (res.data === '添加成功') { newCourseName.value = ''; fetchCourses(); }
+                } catch (err) { alert('添加失败'); }
+            };
+
+            const startEditCourse = (course) => {
+                editingCourse.value = { ...course };
+            };
+
+            const saveEditCourse = async () => {
+                try {
+                    const res = await axios.get('http://localhost:8080/course/update', { params: { id: editingCourse.value.id, name: editingCourse.value.name } });
+                    alert(res.data);
+                    editingCourse.value = null;
+                    fetchCourses();
+                } catch (err) { alert('修改失败'); }
+            };
+
+            const cancelEditCourse = () => { editingCourse.value = null; };
+
+            const deleteCourse = async (id) => {
+                if (!confirm('确定删除该课程吗？删除后相关成绩也会丢失！')) return;
+                try {
+                    const res = await axios.get('http://localhost:8080/course/delete', { params: { id: id } });
+                    alert(res.data);
+                    fetchCourses();
+                } catch (err) { alert('删除失败'); }
+            };
+
+            const doLogin = async () => {
+                loginError.value = '';
+                try {
+                    const res = await axios.get('http://localhost:8080/user/login', { params: { username: loginForm.value.username, password: loginForm.value.password } });
+                    if (res.data && res.data.id) {
+                        user.value = res.data;
+                        isLoggedIn.value = true;
+                        fetchAnnouncements();
+                        fetchCourses();
+                    } else { loginError.value = '用户名或密码错误'; }
+                } catch (err) { loginError.value = '登录失败'; }
+            };
+
+            const logout = () => {
+                isLoggedIn.value = false;
+                user.value = {};
+                grades.value = [];
+                gradeLoaded.value = false;
+            };
+
+            const fetchMyGrades = async () => {
+                gradeLoading.value = true; gradeLoaded.value = true;
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/my', { params: { studentId: user.value.id } });
+                    grades.value = res.data;
+                } catch (err) { grades.value = [];
+                } finally { gradeLoading.value = false; }
+            };
+
+            const fetchGradesByStudentId = async () => {
+                if (!queryStudentId.value) return;
+                gradeLoading.value = true; gradeLoaded.value = true;
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/my', { params: { studentId: queryStudentId.value } });
+                    grades.value = res.data;
+                } catch (err) { grades.value = [];
+                } finally { gradeLoading.value = false; }
+            };
+
+            const fetchAllGrades = async () => {
+                gradeLoading.value = true; gradeLoaded.value = true;
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/list');
+                    grades.value = res.data;
+                } catch (err) { grades.value = [];
+                } finally { gradeLoading.value = false; }
+            };
+
+            const addGrade = async () => {
+                if (!newGrade.value.studentId || !newGrade.value.courseId || !newGrade.value.score) {
+                    alert('请填写完整信息'); return;
+                }
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/add', { params: { studentId: newGrade.value.studentId, courseId: newGrade.value.courseId, score: newGrade.value.score } });
+                    alert(res.data);
+                    if (res.data === '添加成功') {
+                        newGrade.value = { studentId: '', courseId: '', score: '' };
+                        fetchAllGrades();
+                    }
+                } catch (err) { alert('添加失败'); }
+            };
+
+            const startEdit = (item) => { editingId.value = item.id; editScore.value = item.score; };
+            const saveEdit = async (id) => {
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/update', { params: { id: id, score: editScore.value } });
+                    alert(res.data);
+                    editingId.value = null;
+                    fetchAllGrades();
+                } catch (err) { alert('修改失败'); }
+            };
+            const deleteGrade = async (id) => {
+                if (!confirm('确定删除这条成绩吗？')) return;
+                try {
+                    const res = await axios.get('http://localhost:8080/grade/delete', { params: { id: id } });
+                    alert(res.data);
+                    fetchAllGrades();
+                } catch (err) { alert('删除失败'); }
+            };
+
+            const publishAnnouncement = async () => {
+                if (!newAnnouncement.value.title || !newAnnouncement.value.content) { alert('请填写标题和内容'); return; }
+                try {
+                    await axios.get('http://localhost:8080/announcement/add', { params: { title: newAnnouncement.value.title, content: newAnnouncement.value.content } });
+                    alert('发布成功');
+                    newAnnouncement.value = { title: '', content: '' };
+                    fetchAnnouncements();
+                } catch (err) { alert('发布失败'); }
+            };
+
+            return {
+                isLoggedIn, user, loginForm, loginError,
+                announcements, announcementLoading,
+                courses, newCourseName, editingCourse,
+                grades, gradeLoading, gradeLoaded, queryStudentId,
+                newGrade, newAnnouncement,
+                editingId, editScore,
+                roleClass, roleName, formatDate,
+                doLogin, logout,
+                fetchMyGrades, fetchGradesByStudentId, fetchAllGrades,
+                addGrade, startEdit, saveEdit, deleteGrade,
+                publishAnnouncement,
+                addCourse, startEditCourse, saveEditCourse, cancelEditCourse, deleteCourse
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
